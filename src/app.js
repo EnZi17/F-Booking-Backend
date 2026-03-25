@@ -17,7 +17,7 @@ app.use(cors({
 app.use(express.json());
 app.use(cookieParser());
 
-mongoose.connect(process.env.MONGO_URI);
+mongoose.connect(process.env.MONGO_URI||"mongodb+srv://minhthongvo170106_db_user:enzi117@cluster0.vdtlau7.mongodb.net/?appName=Cluster0");
 
 const db = mongoose.connection;
 
