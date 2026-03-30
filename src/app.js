@@ -1,41 +1,48 @@
-require('dotenv').config();
-const path = require('path');
-const mongoose = require('mongoose');
+require('dotenv').config(); // Load biến môi trường từ file .env
 const express = require('express');
+const mongoose = require('mongoose');
 const cors = require('cors');
-const indexRouter = require('./routes/index');
 
-// // Add new imports
-const authRouter = require('./routes/auth'); // Tạo file này sau
-const cookieParser = require('cookie-parser'); //thư viện đọc dữ liệu từ request của cookie
+// Import các file Routes vừa tạo
+const authRoutes = require('./routes/auth');
+const userRoutes = require('./routes/users');
+const fieldRoutes = require('./routes/fields');
+const bookingRoutes = require('./routes/bookings');
+const adminRoutes = require('./routes/admin');
 
 const app = express();
-app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-  credentials: true
-}));
-app.use(express.json());
-app.use(cookieParser());
 
-mongoose.connect(process.env.MONGO_URI||"mongodb+srv://minhthongvo170106_db_user:enzi117@cluster0.vdtlau7.mongodb.net/?appName=Cluster0");
+// Middleware cơ bản
+app.use(cors()); // Cho phép App Mobile/Web gọi API mà không bị chặn
+app.use(express.json()); // Giúp Express đọc được dữ liệu dạng JSON gửi lên
 
-const db = mongoose.connection;
+// ================= KẾT NỐI DATABASE (MONGODB) =================
+// Đảm bảo bạn đã có biến MONGODB_URI trong file .env
+const URL = process.env.MONGODB_URI || 'mongodb+srv://minhthongvo170106_db_user:enzi117@cluster0.vdtlau7.mongodb.net/?appName=Cluster0';
 
-db.on('error', console.error.bind(console, 'MongoDB connection error:'));
+mongoose.connect(URL)
+  .then(() => console.log('✅ Kết nối MongoDB thành công!'))
+  .catch((err) => console.error('❌ Lỗi kết nối MongoDB:', err));
 
-db.once('open', function() {
-  console.log("MongoDB connected!");
+// ================= ĐĂNG KÝ CÁC ĐƯỜNG DẪN API =================
+app.use('/api/auth', authRoutes);
+app.use('/api/fields', fieldRoutes);
+app.use('/api/bookings', bookingRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/users', userRoutes);
+
+// Route Test xem server sống không
+app.get('/', (req, res) => {
+  res.json({ message: 'Chào mừng đến với Hệ thống API Đặt Sân Bóng (F-Booking)!' });
 });
 
-app.use('/', indexRouter);
-app.use('/auth', authRouter); // Add auth routes
+// Bắt các route không tồn tại (Lỗi 404)
+app.use((req, res) => {
+  res.status(404).json({ message: 'Đường dẫn API không tồn tại!' });
+});
 
-const PORT =  process.env.PORT||9000;
-
+// ================= KHỞI CHẠY SERVER =================
+const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-});
-
-app.get('*', (req, res) => {
-  res.sendFile(path.resolve(__dirname, 'build', 'index.html'));
+  console.log(`🚀 Server đang chạy ngon lành tại port ${PORT}...`);
 });

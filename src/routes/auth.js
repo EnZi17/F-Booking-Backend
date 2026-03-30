@@ -1,107 +1,84 @@
 const express = require('express');
 const router = express.Router();
+const jwt = require('jsonwebtoken');
 const User = require('../models/users');
 
-// Endpoints Register
+const JWT_SECRET = process.env.JWT_SECRET || 'fbooking_secret_key_2026';
+
+// 1. API Đăng ký tài khoản (Khách hàng)
 router.post('/register', async (req, res) => {
   try {
-    const { username, email, password, fullName, phone, address } = req.body;
-    console.log('Received registration data:', req.body);
+    const { fullName, phoneNumber, password } = req.body;
 
-    //check người đky
-    const existingUser = await User.findOne({ 
-      $or: [{ email }, { username }] //username & email là duy nhất, trùng 1 trong 2 sẽ ko cho đky
-    });
-    
-    //Kiểm tra đã tồn tại user chưa, có thì dừng
+    // Kiểm tra số điện thoại đã tồn tại chưa
+    const existingUser = await User.findOne({ phoneNumber });
     if (existingUser) {
-      return res.status(400).json({ message: 'Username or email already exists' });
+      return res.status(400).json({ message: 'Số điện thoại này đã được đăng ký!' });
     }
 
-    // Tạo user mới
-    const user = new User({ 
-      username, 
-      email, 
-      password, //pass chưa hash, chỉ lưu pass trong ram
-      fullName,
-      phone,
-      address,
-      role: 'user'
-    });
-    
-    await user.save(); //lưu user vào DB (chạy )
-    console.log('User saved successfully:', user);
+    // Tạo user mới (role mặc định là USER theo Model)
+    const user = new User({ fullName, phoneNumber, password });
+    await user.save();
 
-    res.status(201).json({
-      message: 'User created successfully',
-      user: {
-        id: user._id,
-        username: user.username,
-        email: user.email,
-        role: user.role
-      }
-    });
+    res.status(201).json({ message: 'Đăng ký tài khoản thành công!' });
   } catch (error) {
-    console.error('Registration error:', error);
-    res.status(500).json({ message: 'Error creating user', error });
+    console.error('Lỗi đăng ký:', error);
+    res.status(500).json({ message: 'Lỗi server khi đăng ký', error: error.message });
   }
 });
 
-// Endpoints Login
+// 2. API Đăng nhập (Chung cho Admin và User)
 router.post('/login', async (req, res) => {
   try {
-    const { email, password, isAdmin } = req.body;
-    console.log('Login attempt:', { email, isAdmin });
+    const { phoneNumber, password } = req.body;
 
-    // Xử lý đăng nhập admin
-    if (isAdmin) {
-      if (password === "1") {
-        return res.json({
-          message: 'Admin login successful',
-          user: {
-            role: 'admin'
-          }
-        });
-      }
-      return res.status(401).json({ message: 'Invalid admin credentials' });
+    if (!phoneNumber || !password) {
+      return res.status(400).json({ message: 'Vui lòng nhập đầy đủ SĐT và Mật khẩu!' });
     }
 
-    // Xử lý đăng nhập user thông thường
-    if (!email || !password) {
-      return res.status(400).json({ message: 'Email and password required' });
+    // --- KIỂM TRA ADMIN (HARDCODE) ---
+    const adminPhone = process.env.ADMIN_PHONE || '0123456789';
+    const adminPass = process.env.ADMIN_PASSWORD || '1';
+
+    if (phoneNumber === adminPhone && password === adminPass) {
+      // Tạo token cho Admin
+      const token = jwt.sign({ id: 'admin_master_id', role: 'ADMIN' }, JWT_SECRET, { expiresIn: '1d' });
+      return res.json({
+        message: 'Đăng nhập Admin thành công!',
+        token,
+        user: { fullName: 'Quản trị viên', phoneNumber, role: 'ADMIN' }
+      });
     }
-    
-    //tìm user theo email
-    const user = await User.findOne({ email });
+
+    // --- KIỂM TRA USER BÌNH THƯỜNG ---
+    const user = await User.findOne({ phoneNumber });
     if (!user) {
-      return res.status(401).json({ message: 'Invalid credentials' });
+      return res.status(401).json({ message: 'Sai số điện thoại hoặc mật khẩu!' });
     }
 
-    //gọi hàm so sánh mật khẩu
-    const checkPassword = await user.comparePassword(password);
-    if (!checkPassword) {
-      return res.status(401).json({ message: 'Invalid credentials' });
+    // So sánh mật khẩu băm
+    const isMatch = await user.comparePassword(password);
+    if (!isMatch) {
+      return res.status(401).json({ message: 'Sai số điện thoại hoặc mật khẩu!' });
     }
+
+    // Tạo Token cho User
+    const token = jwt.sign({ id: user._id, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
 
     res.json({
-      message: 'Login successful',
-      user: {
-        id: user._id,
-        fullName: user.fullName,
-        username: user.username,
-        email: user.email,
-        role: user.role
+      message: 'Đăng nhập thành công!',
+      token,
+      user: { 
+        id: user._id, 
+        fullName: user.fullName, 
+        phoneNumber: user.phoneNumber, 
+        role: user.role 
       }
     });
   } catch (error) {
-    console.error('Login error:', error);
-    res.status(500).json({ message: 'Error logging in', error });
+    console.error('Lỗi đăng nhập:', error);
+    res.status(500).json({ message: 'Lỗi server khi đăng nhập', error: error.message });
   }
-});
-
-// Logout
-router.post('/logout', (req, res) => {
-  res.json({ message: 'Logged out successfully' });
 });
 
 module.exports = router;
