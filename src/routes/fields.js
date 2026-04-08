@@ -4,13 +4,21 @@ const Field = require('../models/field');
 const Booking = require('../models/booking');
 
 // Lấy danh sách toàn bộ sân bóng đang hoạt động
+// UC_U06 & UC_U07: Lấy danh sách sân bóng (có lọc)
 router.get('/', async (req, res) => {
-  try {
-    const fields = await Field.find({ isActive: true });
-    res.json(fields);
-  } catch (error) {
-    res.status(500).json({ message: 'Lỗi server khi tải danh sách sân', error: error.message });
-  }
+    try {
+        const { type } = req.query; // Lấy tham số ?type= từ URL
+        let filter = {};
+
+        if (type) {
+            filter.type = type; // Nếu có type thì mới lọc, không thì lấy hết
+        }
+
+        const fields = await Field.find(filter); 
+        res.json(fields);
+    } catch (error) {
+        res.status(500).json({ message: "Lỗi Server" });
+    }
 });
 
 // Lấy chi tiết một sân bóng theo ID
