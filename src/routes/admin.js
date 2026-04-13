@@ -98,4 +98,39 @@ router.get('/statistics', async (req, res) => {
   }
 });
 
+// UC_A10, UC_A11, UC_A12: API Thống kê tổng hợp cho Dashboard
+router.get('/dashboard', async (req, res) => {
+    try {
+        // Lấy tất cả đơn đã duyệt để tính doanh thu và lượt đặt
+        const approvedBookings = await Booking.find({ status: 'APPROVED' }).populate('fieldId');
+        
+        // 1. Tính tổng doanh thu (UC_A11)
+        const totalRevenue = approvedBookings.reduce((sum, b) => sum + b.totalPrice, 0);
+
+        // 2. Thống kê lượt đặt theo từng sân (UC_A12)
+        const fieldStatsMap = {};
+        approvedBookings.forEach(b => {
+            if (b.fieldId) {
+                const fname = b.fieldId.name;
+                fieldStatsMap[fname] = (fieldStatsMap[fname] || 0) + 1;
+            }
+        });
+        const fieldStats = Object.keys(fieldStatsMap).map(name => ({
+            fieldName: name,
+            totalBookings: fieldStatsMap[name]
+        }));
+
+        // 3. Toàn bộ lịch sử giao dịch (UC_A10 - Lấy 50 đơn gần nhất)
+        const history = await Booking.find().populate('fieldId', 'name').sort({ createdAt: -1 }).limit(50);
+
+        res.json({
+            totalRevenue,
+            fieldStats,
+            history
+        });
+    } catch (error) {
+        res.status(500).json({ message: "Lỗi tải thống kê" });
+    }
+});
+
 module.exports = router;
